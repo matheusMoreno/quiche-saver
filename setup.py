@@ -12,7 +12,7 @@ with open('LICENSE') as f:
 setup(
     name='Quiche Saver Bot',
     version='0.1.0',
-    description='',
+    description='Telegram bot that monitors products and informs when they are back in stock or below a desired price ',
     long_description=readme,
     author='Matheus Moreno',
     author_email='matheus.moreno@poli.ufrj.br',
