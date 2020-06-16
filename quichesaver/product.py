@@ -4,7 +4,8 @@ import logging
 import tldextract
 import requests
 
-from parsers import PARSERS
+from quichesaver.parsers import PARSERS
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -30,8 +31,8 @@ class Product():
         if self.store not in Product.stores:
             raise ValueError
 
-        self.parser = PARSERS[self.store]
         self.update_product_info()
+        self.unreachable_count = 0    # Count failures; to future implementation
         self.max_price = max_price
 
         LOGGER.info("Product %s created with success.", self.name)
@@ -39,12 +40,13 @@ class Product():
 
     def get_html(self):
         """Retrieve the HTML given an URL."""
-        req = requests.get(self.url)
+        headers = {"user-agent": "quichesaver/0.1"}
+        req = requests.get(self.url, stream=True, headers=headers)
 
         if not (req.status_code // 100) == 2:
             LOGGER.warning("Request for page %s returned with a status code"
                            "different than Success.", self.url)
-            raise requests.RequestException
+            req.raise_for_status()
 
         return req.text
 
@@ -60,7 +62,7 @@ class Product():
     def update_product_info(self):
         """Update the product info from the product url."""
         html = self.get_html()
-        info = self.parser(html)
+        info = PARSERS[self.store](html)
 
         self.name = info["name"]
         self.price = info["price"]

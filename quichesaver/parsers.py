@@ -81,5 +81,131 @@ def boadica_parser(html):
     return item
 
 
+def magazineluiza_parser(html):
+    """
+    Parser for magazineluiza.com.br.
+
+    There's an attribute with a JSON containing all the info we need when
+    the item is available. When it isn't, we must retrieve the info from
+    another JSON, one much less complete (without best price).
+    """
+
+    item = {}
+
+    # Creating the BeautifulSoup object
+    soup = BeautifulSoup(html, "lxml")
+
+    # Checking if the class 'header-product__title' exists
+    if soup.find('h1', {'class': "header-product__title"}):
+        div_string = soup.find('div', {'class': "js-header-product"})
+        item_info = json.loads(div_string["data-product"])
+
+        item["name"] = item_info["fullTitle"]
+        item["available"] = True
+        item["price"] = brl_converter(item_info["bestPriceTemplate"])
+    else: # If it doesn't exist, the item is unavailable
+        item_json = soup.find("i", {"class": "js-wishlist"})["data-product"]
+        item_info = json.loads(item_json)
+
+        item["name"] = item_info["name"]
+        item["available"] = False
+        item["price"] = 0.0
+
+    return item
+
+
+def submarino_parser(html):
+    """
+    Parser for submarino.com.br.
+
+    Available products have a span tag with the sale's price and a h1 tag
+    with the product's name. Unavailable products have neither.
+    """
+
+    item = {}
+
+    # Creating the BeautifulSoup object
+    soup = BeautifulSoup(html, "lxml")
+
+    # Getting the <span> tag with the price
+    price_tag = soup.find("span", {"class": "sales-price"})
+
+    if price_tag:
+        item["name"] = soup.find("h1", id="product-name-default").string
+        item["price"] = brl_converter(price_tag.string)
+        item["available"] = True
+    else:
+        item["name"] = soup.find("h1", id="product-name-stock").string
+        item["price"] = 0.0
+        item["available"] = False
+
+    return item
+
+
+def americanas_parser(html):
+    """
+    Parser for americanas.com.br.
+
+    Similar to submarino.com.br, but with minor differences on tags.
+    """
+
+    item = {}
+
+    # Creating the BeautifulSoup object
+    soup = BeautifulSoup(html, "lxml")
+
+    # In this website, every item has a product-name-default
+    item["name"] = soup.find("h1", id="product-name-default").string
+
+    # Getting the <span> tag with the price, this time with a regex
+    regex = re.compile('.*SalesPrice.*')
+    price_tag = soup.find("span", {"class": regex})
+
+    if price_tag:
+        item["price"] = brl_converter(price_tag.string)
+        item["available"] = True
+    else:
+        item["price"] = 0.0
+        item["available"] = False
+
+    return item
+
+
+def shoptime_parser(html):
+    """Parser for shoptime.com.br. Exactly the same as submarino.com.br."""
+    return submarino_parser(html)
+
+
+def casasbahia_parser(html):
+    """
+    Parser for casasbahia.com.br.
+
+    Very simple: a Javascript object containing everything we need.
+    """
+
+    item = {}
+
+    # Creating the BeautifulSoup object
+    soup = BeautifulSoup(html, "lxml")
+    pattern = re.compile(r'var\s+siteMetadata\s*=\s*(\{.*?\})\s*;\s*')
+
+    # Get the pattern, and transform the JS object string into a dict
+    script = soup.find("script", text=pattern).string
+    item_json = pattern.search(script).group().strip('var siteMetadata = ;')
+    item_info = json.loads(item_json)
+
+    # Retrieving the item information
+    item["name"] = item_info["page"]["name"]
+    item["price"] = item_info["page"]["product"]["salePrice"]
+    item["available"] = item_info["page"]["product"]["StockAvailability"]
+
+    return item
+
+
 PARSERS = {"cea.com.br": cea_parser,
-           "boadica.com.br": boadica_parser}
+           "boadica.com.br": boadica_parser,
+           "magazineluiza.com.br": magazineluiza_parser,
+           "submarino.com.br": submarino_parser,
+           "americanas.com.br": americanas_parser,
+           "shoptime.com.br": shoptime_parser,
+           "casasbahia.com.br": casasbahia_parser}

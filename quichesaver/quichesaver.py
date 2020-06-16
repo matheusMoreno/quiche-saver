@@ -2,14 +2,15 @@
 For future versions: add a ConversationHandler for the add and remove.
 Transform floats into Decimals for better precision."""
 
+import sys
 import time
 import threading
 import logging
 import requests
 
 from telegram.ext import CommandHandler, Filters, MessageHandler, Updater
-from conf.settings import TELEGRAM_TOKEN
-from product import Product
+from quichesaver.conf.settings import TELEGRAM_TOKEN
+from quichesaver.product import Product
 
 
 LOGGER = logging.getLogger(__name__)
@@ -24,45 +25,46 @@ def monitor_items(update, context):
     """Monitor the items informed by the user."""
     while True:
         # Since it's possible that we modify the list, we need a lock
-        context.user_data["list_lock"].acquire()
-        matched = [False] * len(context.user_data["products"])
+        with context.user_data["lock"]:
+            matched = [False] * len(context.user_data["products"])
 
-        # Checking the price for each item
-        for i in range(len(context.user_data["products"])):
-            info_old = context.user_data["products"][i].get_product_info()
+            # Checking the price for each item
+            for i in range(len(context.user_data["products"])):
+                info_old = context.user_data["products"][i].get_product_info()
+                info = {}
 
-            # If there is a problem getting the product, just ignore it
-            # It would be best to have a timeout and drop the product
-            try:
-                info = context.user_data["products"][i].update_product_info()
-            except requests.RequestException:
-                continue
+                # If there is a problem getting the product, just ignore it
+                # It would be best to have a timeout and drop the product
+                try:
+                    info = context.user_data["products"][i].update_product_info()
+                except Exception as exc:
+                    LOGGER.error("Error updating product: %s", exc)
 
-            LOGGER.info("Old info: %s; new info: %s", info_old, info)
+                LOGGER.info("Old info: %s; new info: %s", info_old, info)
 
-            # Informing if the product is back in stock
-            if not info_old["available"] and info["available"]:
-                message = f"The product {info['name']} is back in stock, "\
-                          f"costing R$ {format(info['price'], '.2f')}."\
-                          f" {info['url']}"
-                update.message.reply_text(message)
+                # Informing if the product is back in stock
+                if not info_old["available"] and info["available"]:
+                    message = f"The product {info['name']} is back in stock, "\
+                              f"costing R$ {format(info['price'], '.2f')}."\
+                              f" {info['url']}"
+                    update.message.reply_text(message)
 
-            # Informing if the product is below the max price
-            if info["available"] and info["price"] <= context.user_data["products"][i].max_price:
-                message = f"Hey!! The item {info['name']} is now costing "\
-                          f"R$ {format(info['price'], '.2f')}! Go buy it! I "\
-                          f"will stop monitoring it. {info['url']}"
-                update.message.reply_text(message)
-                matched[i] = True
+                # Informing if the product is below the max price
+                if info["available"] and info["price"] <=\
+                   context.user_data["products"][i].max_price:
+                    message = f"Hey!! The item {info['name']} is now costing "\
+                              f"R$ {format(info['price'], '.2f')}! Go buy it! I "\
+                              f"will stop monitoring it. {info['url']}"
+                    update.message.reply_text(message)
+                    matched[i] = True
 
-            time.sleep(ITEM_INTERVAL)
+                time.sleep(ITEM_INTERVAL)
 
-        # Removing the matched items
-        context.user_data["products"] = [elem for i, elem in \
-            enumerate(context.user_data["products"]) if not matched[i]]
+            # Removing the matched items
+            context.user_data["products"] = [elem for i, elem in \
+                enumerate(context.user_data["products"]) if not matched[i]]
 
         # Relase the lock and wait for the next round
-        context.user_data["list_lock"].release()
         time.sleep(MONITOR_INTERVAL)
 
 
@@ -75,7 +77,7 @@ def start(update, context):
     show_help(update, context)
 
     context.user_data["products"] = []
-    context.user_data["list_lock"] = threading.Lock()
+    context.user_data["lock"] = threading.RLock()
     context.user_data["thread"] = threading.Thread(target=monitor_items,
                                                    args=(update, context))
     context.user_data["thread"].start()
@@ -124,15 +126,13 @@ def add_item(update, context):
         return
 
     # We need to acquire the lock add a new product to the list
-    context.user_data["list_lock"].acquire()
+    with context.user_data["lock"]:
+        if len(context.user_data["products"]) > MAX_ITEMS:
+            response = "You're monitoring too many items! Remove some."
+            update.message.reply_text(response)
+            return
 
-    if len(context.user_data["products"]) > MAX_ITEMS:
-        response = "You're monitoring too many items! Remove some."
-        update.message.reply_text(response)
-        return
-
-    context.user_data["products"].append(new_prod)
-    context.user_data["list_lock"].release()
+        context.user_data["products"].append(new_prod)
 
     response = f"Ok, I am now monitoring the product {new_prod.name} at the "\
                f"store {new_prod.store}. I'll warn you when the price drops "\
@@ -146,16 +146,15 @@ def remove_item(update, context):
     item_removed = None
 
     # Check if the value passed was a valid number (int and in range)
-    try:
-        index = int(index_str) - 1
-        context.user_data["list_lock"].acquire()
-        item_removed = context.user_data["products"].pop(index)
-        context.user_data["list_lock"].release()
-    except (ValueError, IndexError):
-        response = "There was a problem removing the product. Did you "\
-                   "pass the right product ID?"
-        update.message.reply_text(response)
-        return
+    with context.user_data["lock"]:
+        try:
+            index = int(index_str) - 1
+            item_removed = context.user_data["products"].pop(index)
+        except (ValueError, IndexError):
+            response = "There was a problem removing the product. Did you "\
+                       "pass the right product ID?"
+            update.message.reply_text(response)
+            return
 
     # This if is unecessary, but better safe than sorry
     if item_removed:
@@ -169,20 +168,17 @@ def status(update, context):
     response = "I'm currently monitoring the following items:\n"
     update.message.reply_text(response)
 
-    context.user_data["list_lock"].acquire()
+    with context.user_data["lock"]:
+        if not context.user_data["products"]:
+            response = "Wow! Nothing!"
+            update.message.reply_text(response)
 
-    if not context.user_data["products"]:
-        response = "Wow! Nothing!"
-        update.message.reply_text(response)
-
-    # List the items
-    for i, prod in enumerate(context.user_data["products"]):
-        msg_price = f"Current price: R$ {format(prod.price, '.2f')}\n\n" if \
-                    prod.available else "Currently unavailable\n\n"
-        response = f"[ID {i + 1}] {prod.name} at {prod.store}\n" + msg_price
-        update.message.reply_text(response)
-
-    context.user_data["list_lock"].release()
+        # List the items
+        for i, prod in enumerate(context.user_data["products"]):
+            msg_price = f"Current price: R$ {format(prod.price, '.2f')}\n\n" if \
+                        prod.available else "Currently unavailable\n\n"
+            response = f"[ID {i + 1}] {prod.name} at {prod.store}\n" + msg_price
+            update.message.reply_text(response)
 
 
 def ping(update, context):
@@ -216,6 +212,12 @@ def main():
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    file_handler = logging.FileHandler("quichesaver.log")
+    stdout_handler = logging.StreamHandler(sys.stdout)
+
+    logging.basicConfig(format="%(asctime)s %(levelname)s    %(message)s",
+                        handlers=(file_handler, stdout_handler),
+                        level=logging.INFO)
+
     print("Press Ctrl-C to stop the bot.")
     main()

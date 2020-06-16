@@ -1,3 +1,4 @@
 quichesaver/tester.py
 quichesaver/conf/.env
 *.pyc
+*.log
