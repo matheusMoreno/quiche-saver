@@ -39,6 +39,7 @@ def monitor_items(update, context):
                     info = context.user_data["products"][i].update_product_info()
                 except Exception as exc:
                     LOGGER.error("Error updating product: %s", exc)
+                    continue
 
                 LOGGER.info("Old info: %s; new info: %s", info_old, info)
 
