@@ -12,7 +12,7 @@ First, you need to [create a bot with the BotFather](https://core.telegram.org/b
 TELEGRAM_TOKEN=<YOUR_TOKEN_HERE>
 ```
 
-After that, install the necessary requirements with `pip install -r requirements.txt` (preferably on a virtual environment) and run `quichesaver/quichesaver.py`.
+After that, install the necessary requirements with `pip install -r requirements.txt` (preferably on a virtual environment) and run `python -m quichesaver.quichesaver`.
 
 ## Important considerations
 
