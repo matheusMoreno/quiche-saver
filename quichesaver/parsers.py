@@ -23,13 +23,11 @@ def brl_converter(string):
 
 
 def cea_parser(html):
-    """
-    Parser for cea.com.br.
+    """Parse data for cea.com.br.
 
     They have a Javascript code inside a <script> tag, with an object called
     skuJson_0, which contains all the information we want.
     """
-
     item = {}
 
     # Creating the BeautifulSoup object and regex pattern
@@ -53,13 +51,11 @@ def cea_parser(html):
 
 
 def boadica_parser(html):
-    """
-    Parser for boadica.com.br.
+    """Parse data for boadica.com.br.
 
     The values are scattered throughout the site; the price is already
     formatted, and to check availability we need to see if min = max.
     """
-
     item = {}
 
     # Creating the BeautifulSoup object
@@ -82,14 +78,12 @@ def boadica_parser(html):
 
 
 def magazineluiza_parser(html):
-    """
-    Parser for magazineluiza.com.br.
+    """Parse data for magazineluiza.com.br.
 
     There's an attribute with a JSON containing all the info we need when
     the item is available. When it isn't, we must retrieve the info from
     another JSON, one much less complete (without best price).
     """
-
     item = {}
 
     # Creating the BeautifulSoup object
@@ -103,7 +97,8 @@ def magazineluiza_parser(html):
         item["name"] = item_info["fullTitle"]
         item["available"] = True
         item["price"] = brl_converter(item_info["bestPriceTemplate"])
-    else: # If it doesn't exist, the item is unavailable
+    # If it doesn't exist, the item is unavailable
+    else:
         item_json = soup.find("i", {"class": "js-wishlist"})["data-product"]
         item_info = json.loads(item_json)
 
@@ -115,13 +110,11 @@ def magazineluiza_parser(html):
 
 
 def submarino_parser(html):
-    """
-    Parser for submarino.com.br.
+    """Parse data for submarino.com.br.
 
     Available products have a span tag with the sale's price and a h1 tag
     with the product's name. Unavailable products have neither.
     """
-
     item = {}
 
     # Creating the BeautifulSoup object
@@ -143,12 +136,10 @@ def submarino_parser(html):
 
 
 def americanas_parser(html):
-    """
-    Parser for americanas.com.br.
+    """Parse data for americanas.com.br.
 
     Similar to submarino.com.br, but with minor differences on tags.
     """
-
     item = {}
 
     # Creating the BeautifulSoup object
@@ -172,17 +163,15 @@ def americanas_parser(html):
 
 
 def shoptime_parser(html):
-    """Parser for shoptime.com.br. Exactly the same as submarino.com.br."""
+    """Parse data for shoptime.com.br. Exactly the same as submarino.com.br."""
     return submarino_parser(html)
 
 
 def casasbahia_parser(html):
-    """
-    Parser for casasbahia.com.br.
+    """Parse data for casasbahia.com.br.
 
     Very simple: a Javascript object containing everything we need.
     """
-
     item = {}
 
     # Creating the BeautifulSoup object
@@ -202,10 +191,38 @@ def casasbahia_parser(html):
     return item
 
 
-PARSERS = {"cea.com.br": cea_parser,
-           "boadica.com.br": boadica_parser,
-           "magazineluiza.com.br": magazineluiza_parser,
-           "submarino.com.br": submarino_parser,
-           "americanas.com.br": americanas_parser,
-           "shoptime.com.br": shoptime_parser,
-           "casasbahia.com.br": casasbahia_parser}
+def kabum_parser(html):
+    """Parse data for kabum.com.br.
+
+    There's a script at the end of the page with a JSON containing the
+    data for the desired product.
+    """
+    item = {}
+
+    # Creating the BeautifulSoup object
+    soup = BeautifulSoup(html, "lxml")
+
+    # Getting the data dict
+    data_raw = soup.find("script", id="__NEXT_DATA__").string
+    data = json.loads(data_raw)["props"]["pageProps"]["productData"]
+
+    # Retrieving the information
+    item = {
+        "name": data.get("name"),
+        "price": data.get("priceDetails", {}).get("discountPrice", 0.0),
+        "available": data.get("available"),
+    }
+
+    return item
+
+
+PARSERS = {
+    "cea.com.br": cea_parser,
+    "boadica.com.br": boadica_parser,
+    "magazineluiza.com.br": magazineluiza_parser,
+    "submarino.com.br": submarino_parser,
+    "americanas.com.br": americanas_parser,
+    "shoptime.com.br": shoptime_parser,
+    "casasbahia.com.br": casasbahia_parser,
+    "kabum.com.br": kabum_parser,
+}
