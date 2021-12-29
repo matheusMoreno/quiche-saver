@@ -1,4 +1,9 @@
-quichesaver/tester.py
+# VS Code config
+.vscode/
+
+# File with system configs
 quichesaver/conf/.env
+
+# Pycache and log files
 *.pyc
 *.log
