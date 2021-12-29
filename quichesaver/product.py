@@ -18,10 +18,11 @@ def store_domain(url):
 
 class Product():
     """Class for a monitored product."""
+
     stores = list(PARSERS.keys())
 
     def __init__(self, product_url, max_price):
-        """Constructor for the Product class."""
+        """Construct the Product class."""
         self.url = product_url
         self.store = store_domain(product_url)
 
@@ -29,14 +30,13 @@ class Product():
 
         # Check if the store has a corresponding parser
         if self.store not in Product.stores:
-            raise ValueError
+            raise ValueError(f"Store not implemented: {self.store}")
 
         self.update_product_info()
-        self.unreachable_count = 0    # Count failures; to future implementation
+        self.unreachable_count = 0    # Count failures; for future versions
         self.max_price = max_price
 
         LOGGER.info("Product %s created with success.", self.name)
-
 
     def get_html(self):
         """Retrieve the HTML given an URL."""
@@ -44,12 +44,11 @@ class Product():
         req = requests.get(self.url, stream=True, headers=headers)
 
         if not (req.status_code // 100) == 2:
-            LOGGER.warning("Request for page %s returned with a status code"
+            LOGGER.warning("Request for page %s returned with a status code "
                            "different than Success.", self.url)
             req.raise_for_status()
 
         return req.text
-
 
     def get_product_info(self):
         """Get the product's current info."""
@@ -57,7 +56,6 @@ class Product():
                 "price": self.price,
                 "available": self.available,
                 "url": self.url}
-
 
     def update_product_info(self):
         """Update the product info from the product url."""
