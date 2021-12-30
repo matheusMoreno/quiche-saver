@@ -21,7 +21,17 @@ the file `quichesaver/conf/.env` and write:
 TELEGRAM_TOKEN=<YOUR_TOKEN_HERE>
 ```
 
-After that, install the necessary requirements with `pip install -r requirements.txt`
+Next, install the Gecko Driver necessary for Selenium:
+
+```bash
+# Linux
+sudo apt-get install geckodriver
+
+# MacOS
+brew install geckodriver
+```
+
+Finally, install the necessary requirements with `pip install -r requirements.txt`
 (preferably on a virtual environment) and run `python -m quichesaver.quichesaver`.
 
 ## Important considerations
