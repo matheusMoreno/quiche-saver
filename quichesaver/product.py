@@ -1,13 +1,19 @@
 """Defining the Product class and associated functions."""
 
+import time
 import logging
 import tldextract
-import requests
+
+from selenium import webdriver
+from selenium.common.exceptions import TimeoutException
 
 from quichesaver.parsers import PARSERS
 
 
 LOGGER = logging.getLogger(__name__)
+
+DRIVER_OPTS = webdriver.FirefoxOptions()
+DRIVER_OPTS.add_argument("--headless")
 
 
 def store_domain(url):
@@ -39,23 +45,29 @@ class Product():
         LOGGER.info("Product %s created with success.", self.name)
 
     def get_html(self):
-        """Retrieve the HTML given an URL."""
-        headers = {"user-agent": "quichesaver/0.1"}
-        req = requests.get(self.url, stream=True, headers=headers)
+        """Retrieve the HTML given an URL, using a Web Driver."""
+        with webdriver.Firefox(options=DRIVER_OPTS) as driver:
+            driver.set_page_load_timeout(20)
 
-        if not (req.status_code // 100) == 2:
-            LOGGER.warning("Request for page %s returned with a status code "
-                           "different than Success.", self.url)
-            req.raise_for_status()
+            try:
+                driver.get(self.url)
+                time.sleep(3)
+            except TimeoutException as exc:
+                self.unreachable_count += 1
+                raise TimeoutException("Timeout for the data.") from exc
 
-        return req.text
+            html = driver.page_source
+
+        return html
 
     def get_product_info(self):
         """Get the product's current info."""
-        return {"name": self.name,
-                "price": self.price,
-                "available": self.available,
-                "url": self.url}
+        return {
+            "name": self.name,
+            "price": self.price,
+            "available": self.available,
+            "url": self.url
+        }
 
     def update_product_info(self):
         """Update the product info from the product url."""

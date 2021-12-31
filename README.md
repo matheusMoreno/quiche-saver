@@ -47,10 +47,14 @@ Also, I must say that this is minimal working version. Only two stores are imple
 `quichesaver/parsers.py`, you can add that store to your version.
 
 **Current stores supported:**
-- [C&A](https://www.cea.com.br/)
 - [Boa Dica](https://www.boadica.com.br/)
 - [Magazine Luiza](https://www.magazineluiza.com.br/)
 - [Submarino](https://www.submarino.com.br/)
 - [Americanas](https://www.americanas.com.br/)
 - [Shoptime](https://www.shoptime.com.br/)
 - [Casas Bahia](https://www.casasbahia.com.br/)
+- [Extra](https://www.extra.com.br/)
+- [Ponto Frio](https://www.pontofrio.com.br/)
+- [Kabum](https://www.kabum.com.br/)
+- [Fast Shop](https://www.fastshop.com.br/)
+- [Amazon](https://www.amazon.com.br/)

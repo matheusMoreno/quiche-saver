@@ -1,6 +1,8 @@
 """Main program to the Telegram bot.
+
 For future versions: add a ConversationHandler for the add and remove.
-Transform floats into Decimals for better precision."""
+Transform floats into Decimals for better precision.
+"""
 
 import sys
 import time
@@ -9,6 +11,7 @@ import logging
 import requests
 
 from telegram.ext import CommandHandler, Filters, MessageHandler, Updater
+
 from quichesaver.conf.settings import TELEGRAM_TOKEN
 from quichesaver.product import Product
 
@@ -16,9 +19,8 @@ from quichesaver.product import Product
 LOGGER = logging.getLogger(__name__)
 
 MAX_ITEMS = 100              # Max number of items per user
-MONITOR_INTERVAL = 2 * 60    # Interval between updates, in seconds
-ITEM_INTERVAL = 2            # Interval between each individual item check.
-                             # Keep it low so that site doesn't block you
+MONITOR_INTERVAL = 1 * 30    # Interval between updates, in seconds
+ITEM_INTERVAL = 1            # Interval between each individual item check
 
 
 def monitor_items(update, context):
@@ -53,17 +55,21 @@ def monitor_items(update, context):
                 # Informing if the product is below the max price
                 if info["available"] and info["price"] <=\
                    context.user_data["products"][i].max_price:
-                    message = f"Hey!! The item {info['name']} is now costing "\
-                              f"R$ {format(info['price'], '.2f')}! Go buy it! I "\
-                              f"will stop monitoring it. {info['url']}"
+                    message = (
+                        f"Hey!! The item {info['name']} is now costing "
+                        f"R$ {format(info['price'], '.2f')}! Go buy it! "
+                        f"I will stop monitoring it. {info['url']}"
+                    )
                     update.message.reply_text(message)
                     matched[i] = True
 
                 time.sleep(ITEM_INTERVAL)
 
             # Removing the matched items
-            context.user_data["products"] = [elem for i, elem in \
-                enumerate(context.user_data["products"]) if not matched[i]]
+            context.user_data["products"] = [
+                elem for i, elem in enumerate(context.user_data["products"])
+                if not matched[i]
+            ]
 
         # Relase the lock and wait for the next round
         time.sleep(MONITOR_INTERVAL)
@@ -98,7 +104,7 @@ def show_help(update, context):
 
 
 def add_item(update, context):
-    """Usage: /add <link> <desired price>"""
+    """Add item to monitor."""
     arguments_str = update.message.text.partition(' ')[2]
     arguments = arguments_str.split(' ')
 
@@ -176,9 +182,11 @@ def status(update, context):
 
         # List the items
         for i, prod in enumerate(context.user_data["products"]):
-            msg_price = f"Current price: R$ {format(prod.price, '.2f')}\n\n" if \
-                        prod.available else "Currently unavailable\n\n"
-            response = f"[ID {i + 1}] {prod.name} at {prod.store}\n" + msg_price
+            msg_price = (
+                f"Current price: R$ {format(prod.price, '.2f')}\n\n"
+                if prod.available else "Currently unavailable\n\n"
+            )
+            response = f"[ID {i + 1}] {prod.name} at {prod.store}\n{msg_price}"
             update.message.reply_text(response)
 
 
@@ -189,13 +197,13 @@ def ping(update, context):
 
 
 def unknown(update, context):
-    """Default answer to random commands."""
+    """Answer to unknown commands."""
     response = "I don't know what you want me to do."
     update.message.reply_text(response)
 
 
 def main():
-    """Main function for the bot."""
+    """Execute the bot."""
     updater = Updater(token=TELEGRAM_TOKEN, use_context=True)
     disp = updater.dispatcher
 

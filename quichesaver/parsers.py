@@ -22,34 +22,6 @@ def brl_converter(string):
     return float(string.strip("R$ ").replace('.', '').replace(',', '.'))
 
 
-def cea_parser(html):
-    """Parse data for cea.com.br.
-
-    They have a Javascript code inside a <script> tag, with an object called
-    skuJson_0, which contains all the information we want.
-    """
-    item = {}
-
-    # Creating the BeautifulSoup object and regex pattern
-    soup = BeautifulSoup(html, "lxml")
-    pattern = re.compile(r'var\s+skuJson_0\s*=\s*(\{.*?\})\s*;\s*')
-
-    # Get the pattern, and transform the JS object string into a dict
-    script = soup.find("script", text=pattern).string
-    item_json = pattern.search(script).group().strip('var skuJson_0 = ;')
-    item_info = json.loads(item_json)
-
-    # Retrieving the item information
-    item["name"] = item_info["name"]
-    item["available"] = item_info["skus"][0]["available"]
-
-    # Calculating the price considering further discounts
-    price_best = 0.95 * float(item_info["skus"][0]["bestPrice"]) / 100
-    item["price"] = round(price_best, 2)
-
-    return item
-
-
 def boadica_parser(html):
     """Parse data for boadica.com.br.
 
@@ -97,8 +69,8 @@ def magazineluiza_parser(html):
         item["name"] = item_info["fullTitle"]
         item["available"] = True
         item["price"] = brl_converter(item_info["bestPriceTemplate"])
-    # If it doesn't exist, the item is unavailable
     else:
+        # If it doesn't exist, the item is unavailable
         item_json = soup.find("i", {"class": "js-wishlist"})["data-product"]
         item_info = json.loads(item_json)
 
@@ -109,86 +81,86 @@ def magazineluiza_parser(html):
     return item
 
 
-def submarino_parser(html):
-    """Parse data for submarino.com.br.
-
-    Available products have a span tag with the sale's price and a h1 tag
-    with the product's name. Unavailable products have neither.
-    """
-    item = {}
-
-    # Creating the BeautifulSoup object
-    soup = BeautifulSoup(html, "lxml")
-
-    # Getting the <span> tag with the price
-    price_tag = soup.find("span", {"class": "sales-price"})
-
-    if price_tag:
-        item["name"] = soup.find("h1", id="product-name-default").string
-        item["price"] = brl_converter(price_tag.string)
-        item["available"] = True
-    else:
-        item["name"] = soup.find("h1", id="product-name-stock").string
-        item["price"] = 0.0
-        item["available"] = False
-
-    return item
-
-
 def americanas_parser(html):
     """Parse data for americanas.com.br.
 
-    Similar to submarino.com.br, but with minor differences on tags.
+    There's a script somewhere on the page with a JSON containing the
+    data for the desired product.
     """
     item = {}
 
     # Creating the BeautifulSoup object
     soup = BeautifulSoup(html, "lxml")
 
-    # In this website, every item has a product-name-default
-    item["name"] = soup.find("h1", id="product-name-default").string
+    # Retrieve de JSON
+    data_raw = soup.find("script", type="application/ld+json").string
+    data = json.loads(data_raw)["@graph"]
+    data = next(x for x in data if x["@type"] == "Product")
 
-    # Getting the <span> tag with the price, this time with a regex
-    regex = re.compile('.*SalesPrice.*')
-    price_tag = soup.find("span", {"class": regex})
-
-    if price_tag:
-        item["price"] = brl_converter(price_tag.string)
-        item["available"] = True
-    else:
-        item["price"] = 0.0
-        item["available"] = False
+    # Retrieving the information
+    item = {
+        "name": data.get("name"),
+        "price": data.get("offers", {}).get("lowPrice", 0.0),
+    }
+    item["available"] = bool(item["price"])
 
     return item
 
 
+def submarino_parser(html):
+    """Parse data for submarino.com.br.
+
+    Exactly the same as americanas.com.br.
+    """
+    return americanas_parser(html)
+
+
 def shoptime_parser(html):
-    """Parse data for shoptime.com.br. Exactly the same as submarino.com.br."""
-    return submarino_parser(html)
+    """Parse data for shoptime.com.br.
+
+    Exactly the same as americanas.com.br.
+    """
+    return americanas_parser(html)
 
 
 def casasbahia_parser(html):
     """Parse data for casasbahia.com.br.
 
-    Very simple: a Javascript object containing everything we need.
+    Retrieve data from the HTML itself.
     """
     item = {}
 
     # Creating the BeautifulSoup object
     soup = BeautifulSoup(html, "lxml")
-    pattern = re.compile(r'var\s+siteMetadata\s*=\s*(\{.*?\})\s*;\s*')
 
-    # Get the pattern, and transform the JS object string into a dict
-    script = soup.find("script", text=pattern).string
-    item_json = pattern.search(script).group().strip('var siteMetadata = ;')
-    item_info = json.loads(item_json)
+    # Getting product name and price
+    name = soup.find("h1").string
+    price_str = soup.find("span", id="product-price")
 
-    # Retrieving the item information
-    item["name"] = item_info["page"]["name"]
-    item["price"] = item_info["page"]["product"]["salePrice"]
-    item["available"] = item_info["page"]["product"]["StockAvailability"]
+    # Retrieving the information
+    item = {
+        "name": name,
+        "price": brl_converter(price_str.string) if price_str else 0.0,
+        "available": bool(price_str),
+    }
 
     return item
+
+
+def extra_parser(html):
+    """Parse data for extra.com.br.
+
+    Exactly the same as casasbahia.com.br.
+    """
+    return casasbahia_parser(html)
+
+
+def pontofrio_parser(html):
+    """Parse data for pontofrio.com.br.
+
+    Exactly the same as casasbahia.com.br.
+    """
+    return casasbahia_parser(html)
 
 
 def kabum_parser(html):
@@ -216,13 +188,85 @@ def kabum_parser(html):
     return item
 
 
+def fastshop_parser(html):
+    """Parse data for fastshop.com.br.
+
+    Retrieve data from the HTML itself.
+    """
+    item = {}
+
+    # Creating the BeautifulSoup object
+    soup = BeautifulSoup(html, "lxml")
+
+    # Getting product name and price
+    name = soup.find("h1", {"class": "title"})
+    price_str_fraction = soup.find("span", {"class": "price-fraction"})
+    price_str_cents = soup.find("span", {"class": "price-cents"})
+
+    # This store does not display the page if the item doesn't exist
+    if not name:
+        return {
+            "name": None,
+            "price": 0.0,
+            "available": False,
+        }
+
+    # Convert name and price
+    name = name.string
+    price = brl_converter(
+        price_str_fraction.string + price_str_cents.string
+    ) if (price_str_fraction and price_str_cents) else 0.0
+
+    # Retrieving the information
+    item = {
+        "name": name,
+        "price": price,
+        "available": bool(price),
+    }
+
+    return item
+
+
+def amazon_parser(html):
+    """Parse data for amazon.com.br.
+
+    Retrieve data from the HTML itself.
+    """
+    item = {}
+
+    # Creating the BeautifulSoup object
+    soup = BeautifulSoup(html, "lxml")
+
+    # Getting product name
+    name = soup.find("span", id="productTitle").string
+
+    # Getting product price
+    price_span = soup.find("span", {"class": "priceToPay"})
+    if price_span is None:
+        price_span = soup.find("span", {"class": "apexPriceToPay"})
+    price_str = price_span.find("span", {"class": "a-offscreen"}) \
+        if price_span is not None else None
+
+    # Retrieving the information
+    item = {
+        "name": name.strip(),
+        "price": brl_converter(price_str.string) if price_str else 0.0,
+        "available": bool(price_str),
+    }
+
+    return item
+
+
 PARSERS = {
-    "cea.com.br": cea_parser,
     "boadica.com.br": boadica_parser,
     "magazineluiza.com.br": magazineluiza_parser,
     "submarino.com.br": submarino_parser,
     "americanas.com.br": americanas_parser,
     "shoptime.com.br": shoptime_parser,
     "casasbahia.com.br": casasbahia_parser,
+    "extra.com.br": extra_parser,
+    "pontofrio.com.br": pontofrio_parser,
     "kabum.com.br": kabum_parser,
+    "fastshop.com.br": fastshop_parser,
+    "amazon.com.br": amazon_parser,
 }
